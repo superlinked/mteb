@@ -524,6 +524,20 @@ class AbsTask(ABC):
             )
 
         self.hf_subsets = subsets_to_keep
+        # Also filter eval_langs to match - fixes retrieval tasks where load_data()
+        # iterates metadata.eval_langs instead of hf_subsets.
+        # IMPORTANT: We must copy metadata first since it's a class attribute shared
+        # by all instances. Without this copy, filtering would permanently modify the
+        # class-level metadata, breaking subsequent instantiations.
+        if hasattr(self.metadata, "eval_langs") and isinstance(self.metadata.eval_langs, dict):
+            subsets_set = set(subsets_to_keep)
+            filtered_eval_langs = {
+                k: v for k, v in self.metadata.eval_langs.items() if k in subsets_set
+            }
+            # Only copy metadata if eval_langs actually changed
+            if len(filtered_eval_langs) != len(self.metadata.eval_langs):
+                self.metadata = self.metadata.model_copy(deep=True)
+                self.metadata.eval_langs = filtered_eval_langs
         return self
 
     def _add_main_score(self, scores: ScoresDict) -> None:
